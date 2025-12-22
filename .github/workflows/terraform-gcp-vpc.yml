@@ -1,0 +1,38 @@
+name: terraform-gcp-vpc
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - run: terraform init
+      - run: terraform plan -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
+      - if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
