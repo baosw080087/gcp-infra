@@ -1,13 +1,19 @@
 name: terraform-gcp-vpc
 
 on:
-  pull_request:
-    paths:
-      - "infra/**"
-  push:
-    branches: ["main"]
-    paths:
-      - "infra/**"
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: "GCP Project ID"
+        required: true
+      apply:
+        description: "Whether to run terraform apply"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -19,20 +25,30 @@ jobs:
     defaults:
       run:
         working-directory: infra
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: google-github-actions/auth@v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
+          terraform_wrapper: false
 
-      - run: terraform init
-      - run: terraform plan -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
-      - if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform plan
+        run: terraform plan -var="project_id=${{ inputs.project_id }}"
+
+      - name: Terraform apply
+        if: inputs.apply == 'true'
+        run: terraform apply -auto-approve -var="project_id=${{ inputs.project_id }}"
